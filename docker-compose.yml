@@ -1,0 +1,15 @@
+services:
+  mcp:
+    build: .
+    command: python -m visiontriage.mcp_server
+    ports:
+      - "8000:8000"
+  api:
+    build: .
+    command: uvicorn visiontriage.api:app --host 0.0.0.0 --port 8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      - mcp
+    env_file:
+      - .env

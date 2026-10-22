@@ -52,9 +52,12 @@ class ProfilerAnalyst:
         if not profile["candidates"]:
             return {"done": True}
         top = profile["candidates"][0]
+        # Ask for the error kind this slice actually has (FP-heavy slices
+        # have no false negatives to cite as evidence).
+        outcome = "fp" if top.get("fp", 0) > top.get("fn", 0) else "fn"
         return {"queries": [
             {"tool": "slice_metrics", "args": {"dimension": top["dimension"], "value": top["value"]}},
-            {"tool": "list_examples", "args": {"outcome": "fn", "dimension": top["dimension"],
+            {"tool": "list_examples", "args": {"outcome": outcome, "dimension": top["dimension"],
                                                "value": top["value"], "limit": 5}},
         ]}
 
@@ -69,10 +72,12 @@ class ProfilerAnalyst:
     def synthesize(self, profile: dict, tool_results: list[dict],
                    inspections: list[Inspection], errors: list[str]) -> list[Finding]:
         findings: list[Finding] = []
-        examples = []
+        examples: list[str] = []
         for result in tool_results:
             if result.get("tool") == "list_examples":
-                examples = [e["image_id"] for e in result["result"].get("examples", [])]
+                for example in result["result"].get("examples", []):
+                    if example["image_id"] not in examples:
+                        examples.append(example["image_id"])
         for i, cand in enumerate(profile["candidates"][:3], 1):
             findings.append(_finding_from_candidate(i, cand, examples))
         return findings

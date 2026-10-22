@@ -19,6 +19,15 @@ def render_report(doc: FindingsDocument, profile: dict,
         f"(TP {overall['tp']}, FP {overall['fp']}, FN {overall['fn']}, TN {overall['tn']})",
         f"- Prompt versions: {doc.prompt_versions}",
         f"- Investigation complete: {doc.investigation_complete}",
+    ]
+    if doc.used_fallback:
+        lines.append(
+            "- Note: LLM analyst unavailable or failed; deterministic "
+            "profiler-only findings — investigation incomplete.")
+    elif not doc.investigation_complete:
+        lines.append(
+            "- Note: investigation incomplete; see the profiler summary below.")
+    lines += [
         "",
         "## Findings",
         "",

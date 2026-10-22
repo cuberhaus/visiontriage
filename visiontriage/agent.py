@@ -15,7 +15,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
 from visiontriage import tools
-from visiontriage.analysts import ProfilerAnalyst
+from visiontriage.analysts import TOOL_ALLOWLIST, ProfilerAnalyst
 from visiontriage.bundle import Bundle, load_bundle
 from visiontriage.filing import GhFiler
 from visiontriage.mcp_client import call_tool as mcp_call
@@ -105,6 +105,8 @@ def build_graph(bundle: Bundle, analyst, output_dir: Path,
             if len(calls) >= MAX_TOOL_CALLS:
                 break
             tool, args = query.get("tool"), query.get("args", {})
+            if tool not in TOOL_ALLOWLIST:
+                continue
             if tool == "inspect_examples":
                 if inspect_calls >= MAX_INSPECT_CALLS:
                     continue
@@ -161,17 +163,23 @@ def build_graph(bundle: Bundle, analyst, output_dir: Path,
             valid, errors2 = validate_findings(draft2, bundle, inspections)
             return {"findings": [f.model_dump() for f in valid],
                     "validation_errors": errors + errors2, "should_retry": False,
-                    "investigation_complete": False, "used_fallback": True}
+                    "investigation_complete": False,
+                    # Falling back is only news when the primary analyst
+                    # is not already the profiler baseline itself.
+                    "used_fallback": not isinstance(analyst, ProfilerAnalyst)}
         return {"findings": [f.model_dump() for f in valid],
                 "validation_errors": errors, "should_retry": False}
 
     def _doc(state: AgentState) -> FindingsDocument:
         from visiontriage.schemas import Finding
+        used_fallback = bool(state.get("used_fallback", False))
         return FindingsDocument(
             run_id=bundle.metadata.run_id,
             model=getattr(analyst, "name", "unknown"),
             prompt_versions=prompt_versions(), git_sha=bundle.metadata.git_sha,
-            investigation_complete=state.get("investigation_complete", True),
+            investigation_complete=bool(
+                state.get("investigation_complete", True)) and not used_fallback,
+            used_fallback=used_fallback,
             findings=[Finding.model_validate(f) for f in state.get("findings", [])],
             tool_calls=state.get("tool_calls", []),
         )

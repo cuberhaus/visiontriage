@@ -8,7 +8,7 @@ from visiontriage.bundle import Bundle
 from visiontriage.schemas import Finding, Inspection
 
 VISUAL_WORDS = re.compile(
-    r"\b(looks?|appears?|visible|visually|dark|bright|blur|contrast|scratch|crack|stain|spot|colour|color)\b",
+    r"\b(looks?|appears?|visible|visually|scratch\w*|crack\w*|stain\w*|spot\w*|smudge\w*|dent\w*)\b",
     re.IGNORECASE,
 )
 

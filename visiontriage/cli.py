@@ -5,9 +5,10 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 
-from visiontriage.bundle import load_bundle
+from visiontriage.bundle import BundleError, load_bundle
 from visiontriage.profiler import compute_profile
 
 
@@ -76,7 +77,8 @@ def _run_analysis(args, decision: dict | None = None) -> int:
                             for a in f.get("actions", [])],
                         "reviewer": None}
         elif getattr(args, "no_prompt", False):
-            print(f"Resume with: visiontriage resume --bundle {args.bundle}")
+            print(f"Resume with: visiontriage resume {args.bundle} "
+                  f"--output-root {args.output_root} --db {args.db}")
             return 0
         else:
             decision = _prompt_decision(payload["findings"])
@@ -92,17 +94,26 @@ def _cmd_analyse(args) -> int:
 
 def _cmd_resume(args) -> int:
     # Resume re-enters the same checkpoint thread and prompts for a decision.
+    # Usage: visiontriage resume <bundle> [--thread-id <analysis_id>]
     args.no_prompt = False
     args.yes = False
     from visiontriage.agent import analyse
+    if not (Path(args.bundle) / "run.json").is_file():
+        print(f"error: {args.bundle!r} is not a Run Bundle directory; "
+              "resume takes the bundle path (the analysis is identified by "
+              "--thread-id, defaulting to the run_id)", file=sys.stderr)
+        return 1
     analyst = _make_analyst(args)
     bundle = load_bundle(args.bundle)
+    findings_file = Path(args.output_root) / bundle.metadata.run_id / "findings.json"
+    if not findings_file.is_file():
+        print(f"error: no pending analysis for run {bundle.metadata.run_id} "
+              f"under {args.output_root}; run `visiontriage analyse` first",
+              file=sys.stderr)
+        return 1
     print(f"Resuming analysis for run {bundle.metadata.run_id}; "
           "approve/reject the pending draft.")
-    findings_file = Path(args.output_root) / bundle.metadata.run_id / "findings.json"
-    findings = []
-    if findings_file.is_file():
-        findings = json.loads(findings_file.read_text()).get("findings", [])
+    findings = json.loads(findings_file.read_text()).get("findings", [])
     decision = _prompt_decision(findings)
     result = analyse(args.bundle, analyst, output_root=args.output_root,
                      db_path=args.db, thread_id=args.thread_id,
@@ -148,7 +159,9 @@ def main(argv: list[str] | None = None) -> int:
     a.add_argument("--no-prompt", action="store_true", help="Stop at approval and exit")
     a.set_defaults(fn=_cmd_analyse)
 
-    r = sub.add_parser("resume", help="Resume a pending approval")
+    r = sub.add_parser(
+        "resume",
+        help="Resume a pending approval: resume <bundle> [--thread-id <analysis_id>]")
     add_analysis_args(r)
     r.set_defaults(fn=_cmd_resume)
 
@@ -160,7 +173,15 @@ def main(argv: list[str] | None = None) -> int:
     f.set_defaults(fn=_cmd_fixture)
 
     args = parser.parse_args(argv)
-    return args.fn(args)
+    if getattr(args, "file_issues", False) and not getattr(args, "repo", None):
+        print("error: --file-issues requires an explicit --repo owner/name",
+              file=sys.stderr)
+        return 1
+    try:
+        return args.fn(args)
+    except BundleError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
 
 
 if __name__ == "__main__":

@@ -50,5 +50,6 @@ class FindingsDocument(BaseModel):
     prompt_versions: dict[str, str] = {}
     git_sha: str | None = None
     investigation_complete: bool = True
+    used_fallback: bool = False
     findings: list[Finding] = []
     tool_calls: list[dict] = []

@@ -40,6 +40,12 @@ def cluster_failures(outcome: str = "fn", similarity: float = 0.9) -> dict:
 
 
 @mcp.tool
+def duplicate_check() -> dict:
+    """Near-duplicate embeddings shared across splits (leakage signal)."""
+    return tools.duplicate_check(bundle)
+
+
+@mcp.tool
 def quality_breakdown() -> dict:
     """Error breakdown by image-quality band (dark/normal/bright)."""
     return tools.quality_breakdown(bundle)

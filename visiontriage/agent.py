@@ -87,13 +87,23 @@ def build_graph(bundle: Bundle, analyst, output_dir: Path,
         try:
             plan = active_analyst().plan(state["profile"], state.get("tool_results", []))
         except Exception:
+            if state.get("tool_results"):
+                # A late planning failure (e.g. a malformed repeat round)
+                # ends planning; synthesis still gets the collected evidence.
+                return {"plan_done": True, "pending_queries": []}
             state_fallback["active"] = True
             plan = fallback.plan(state["profile"], state.get("tool_results", []))
             return {"plan_done": False, "used_fallback": True,
                     "pending_queries": plan.get("queries", []), "rounds": rounds + 1}
         if plan.get("done"):
             return {"plan_done": True, "pending_queries": []}
-        return {"plan_done": False, "pending_queries": plan.get("queries", []),
+        seen = {(c["tool"], json.dumps(c.get("args", {}), sort_keys=True))
+                for c in state.get("tool_calls", [])}
+        queries = [q for q in plan.get("queries", [])
+                   if (q.get("tool"), json.dumps(q.get("args", {}), sort_keys=True)) not in seen]
+        if not queries:
+            return {"plan_done": True, "pending_queries": []}
+        return {"plan_done": False, "pending_queries": queries,
                 "rounds": rounds + 1}
 
     def tools_node(state: AgentState) -> AgentState:

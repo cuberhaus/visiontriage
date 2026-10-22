@@ -18,7 +18,7 @@ from visiontriage.schemas import Finding, Inspection, RecommendedAction
 
 TOOL_ALLOWLIST = {
     "slice_metrics", "list_examples", "cluster_failures",
-    "quality_breakdown", "score_distribution", "inspect_examples",
+    "quality_breakdown", "score_distribution", "inspect_examples", "duplicate_check",
 }
 
 

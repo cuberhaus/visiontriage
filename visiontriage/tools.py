@@ -103,6 +103,33 @@ def cluster_failures(bundle: Bundle, outcome: str = "fn", similarity: float = 0.
     return {"outcome": outcome, "clusters": out}
 
 
+def duplicate_check(bundle: Bundle, similarity: float = 0.99) -> dict:
+    """Near-duplicate embeddings shared across splits (leakage signal).
+
+    shortcut: O(n^2) pair scan; fine for Run Bundles of hundreds of
+    Predictions, revisit if bundles grow to tens of thousands.
+    """
+    preds = [p for p in bundle.predictions if p.embedding and p.split]
+    pairs: list[dict] = []
+    pair_count = 0
+    image_ids: list[str] = []
+    for i, a in enumerate(preds):
+        for b in preds[i + 1:]:
+            if a.split == b.split or _cosine(a.embedding, b.embedding) < similarity:
+                continue
+            pair_count += 1
+            for p in (a, b):
+                if p.image_id not in image_ids:
+                    image_ids.append(p.image_id)
+            if len(pairs) < 5:
+                pairs.append({
+                    "image_id_a": a.image_id, "split_a": a.split,
+                    "image_id_b": b.image_id, "split_b": b.split,
+                    "similarity": round(_cosine(a.embedding, b.embedding), 4),
+                })
+    return {"pair_count": pair_count, "pairs": pairs, "image_ids": image_ids[:10]}
+
+
 def quality_breakdown(bundle: Bundle) -> dict:
     return slice_metrics(bundle, "quality_band", "dark") | {
         "bands": {

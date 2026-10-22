@@ -24,6 +24,20 @@ def test_tools_and_clustering(tmp_path):
     assert examples["count"] >= 3
 
 
+def test_duplicate_check_finds_cross_split_duplicates(tmp_path):
+    bundle = load_bundle(build_fixture("leakage", tmp_path / "fx"))
+    result = tools.duplicate_check(bundle)
+    assert result["pair_count"] > 0
+    pair = result["pairs"][0]
+    assert pair["split_a"] != pair["split_b"]
+    assert {pair["image_id_a"], pair["image_id_b"]} <= set(result["image_ids"])
+
+
+def test_duplicate_check_quiet_without_cross_split_duplicates(tmp_path):
+    bundle = load_bundle(build_fixture("slice_weakness", tmp_path / "fx"))
+    assert tools.duplicate_check(bundle)["pair_count"] == 0
+
+
 def test_visual_benchmark_labels(tmp_path):
     cases = build_visual_benchmark(tmp_path / "vb", per_kind=2)
     assert len(cases) == 10

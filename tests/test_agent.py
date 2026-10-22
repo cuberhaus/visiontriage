@@ -81,9 +81,9 @@ def test_prompt_versions_present():
 # Prompt bodies are pinned to their versions: editing a prompt without
 # bumping `version:` (and updating this pin) fails this test.
 _PROMPT_PINS = {
-    "plan": ("2", "79faf19cd4829361b8760d67b945f4e175a817d9c21705e20310bc7b4f992d92"),
+    "plan": ("3", "8914b216bdd937c908aeb19d20a72da2d60a97b538713608bac3e17f1b0491c3"),
     "inspect": ("1", "317d9d1adb6fbe7c30d46eaac0486458d411009ecce9ac4d9b6959f441d4fbcf"),
-    "synthesize": ("1", "9a3c9a7346a37aacf75fe52fa0f27b7383e280fa2f70446658b97515d7fbc2ff"),
+    "synthesize": ("2", "7b57210f1b195a7423e4abd7f4e2d60e2d34a97146196a82db40be59c455f360"),
 }
 
 
@@ -180,6 +180,64 @@ def test_bad_tool_args_do_not_kill_the_run(tmp_path):
     trace = json.loads(
         (tmp_path / "out" / "fixture-slice_weakness" / "tool_trace.json").read_text())
     assert len(trace) == 2  # both bad calls recorded, run survived
+
+
+def test_late_plan_failure_synthesises_from_collected_evidence(tmp_path):
+    """A planning failure after evidence is collected must not discard it."""
+    from visiontriage import tools
+
+    class FlakyPlanner(ProfilerAnalyst):
+        name = "flaky"
+
+        def __init__(self):
+            self.calls = 0
+
+        def plan(self, profile, history):
+            self.calls += 1
+            if self.calls > 1:
+                raise RuntimeError("plan blew up after collecting evidence")
+            return {"queries": [
+                {"tool": "list_examples", "args": {"outcome": "fn", "dimension": "category",
+                                                   "value": "screw", "limit": 5}}]}
+
+    def local_caller(bundle, tool, args):
+        return getattr(tools, tool)(bundle, **args)
+
+    bundle_dir = build_fixture("slice_weakness", tmp_path / "fx")
+    result = analyse(str(bundle_dir), FlakyPlanner(), output_root=tmp_path / "out",
+                     db_path=tmp_path / "state.db", thread_id="flaky",
+                     tool_caller=local_caller)
+    assert result.get("__interrupt__")
+    doc = json.loads((tmp_path / "out" / "fixture-slice_weakness" / "findings.json").read_text())
+    assert doc["findings"]
+    assert doc["used_fallback"] is False
+    assert doc["investigation_complete"] is True
+
+
+def test_repeated_queries_are_not_reexecuted(tmp_path):
+    """Re-proposing an already-run query ends planning instead of looping."""
+    from visiontriage import tools
+
+    class Repeater(ProfilerAnalyst):
+        name = "repeater"
+
+        def plan(self, profile, history):
+            return {"queries": [
+                {"tool": "list_examples", "args": {"outcome": "fn", "dimension": "category",
+                                                   "value": "screw", "limit": 5}}]}
+
+    def local_caller(bundle, tool, args):
+        return getattr(tools, tool)(bundle, **args)
+
+    bundle_dir = build_fixture("slice_weakness", tmp_path / "fx")
+    result = analyse(str(bundle_dir), Repeater(), output_root=tmp_path / "out",
+                     db_path=tmp_path / "state.db", thread_id="rep",
+                     tool_caller=local_caller)
+    assert result.get("__interrupt__")
+    doc = json.loads((tmp_path / "out" / "fixture-slice_weakness" / "findings.json").read_text())
+    assert len(doc["tool_calls"]) == 1
+    assert doc["findings"]
+    assert doc["used_fallback"] is False
 
 
 def test_profiler_on_leakage_reports_incomplete_honestly(tmp_path):

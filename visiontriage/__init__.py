@@ -1,3 +1,3 @@
-"""VisionTriage: agentic incident analyst for industrial cameras."""
+"""VisionTriage: local CV model/dataset failure analyst."""
 
-__version__ = "0.1.0"
+__version__ = "0.2.0"

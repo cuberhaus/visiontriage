@@ -1,35 +1,54 @@
-"""Shared data shapes for VisionTriage.
+"""Findings, actions and inspections: the analyst's output contract."""
 
-These models are the contract between the MCP tools, the LangGraph state
-machine and the API. Keep them boring and explicit: every field here shows
-up in LangSmith traces and in the eval dataset.
-"""
+from __future__ import annotations
 
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
-
-class Detection(BaseModel):
-    """One anomaly detection produced by a CV tool."""
-
-    label: str = Field(description="Defect class, e.g. 'scratch' or 'dent'")
-    score: float = Field(ge=0.0, le=1.0, description="Anomaly confidence 0..1")
-    bbox: tuple[int, int, int, int] | None = Field(
-        default=None, description="(x, y, w, h) in pixels, if localised"
-    )
+Taxonomy = Literal[
+    "threshold_miscalibration", "score_overlap", "slice_weakness",
+    "quality_confound", "label_noise", "leakage", "unclassified",
+]
 
 
-class TriageReport(BaseModel):
-    """The agent's final product: a verdict a human can approve or reject."""
+class RecommendedAction(BaseModel):
+    action_id: str
+    category: str = Field(description="Machine-scorable category, e.g. 'recalibrate_threshold'")
+    title: str
+    body: str
 
-    image_id: str
-    verdict: Literal["anomaly", "normal", "uncertain"]
-    detections: list[Detection] = []
-    diagnosis: str = Field(description="Short human-readable explanation")
-    citations: list[str] = Field(
-        default=[], description="Manual sections the diagnosis relied on"
-    )
-    tool_calls: list[str] = Field(
-        default=[], description="Names of tools invoked, in order"
-    )
+
+class VisualClaim(BaseModel):
+    text: str
+    inspection_id: str
+
+
+class Finding(BaseModel):
+    finding_id: str
+    title: str
+    taxonomy: Taxonomy
+    summary: str
+    slice_dimension: str | None = None
+    slice_value: str | None = None
+    evidence_image_ids: list[str] = []
+    metric_name: str = ""
+    metric_value: float | None = None
+    visual_claims: list[VisualClaim] = []
+    actions: list[RecommendedAction] = []
+
+
+class Inspection(BaseModel):
+    inspection_id: str
+    image_ids: list[str]
+    observations: list[dict] = []
+
+
+class FindingsDocument(BaseModel):
+    run_id: str
+    model: str
+    prompt_versions: dict[str, str] = {}
+    git_sha: str | None = None
+    investigation_complete: bool = True
+    findings: list[Finding] = []
+    tool_calls: list[dict] = []

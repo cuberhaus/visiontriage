@@ -125,6 +125,63 @@ def test_budget_and_allowlist_enforced(tmp_path):
     assert all(c["tool"] != "evil_tool" for c in doc["tool_calls"])
 
 
+def test_ollama_chat_accepts_thinking_field_and_disables_think():
+    import io
+    import urllib.request
+
+    from visiontriage.analysts import OllamaAnalyst
+
+    captured = {}
+
+    class FakeResponse(io.BytesIO):
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *exc):
+            return False
+
+    def fake_urlopen(request, timeout=None):
+        captured["body"] = json.loads(request.data)
+        payload = {"message": {"content": "", "thinking": '{"done": true}'}}
+        return FakeResponse(json.dumps(payload).encode())
+
+    original = urllib.request.urlopen
+    urllib.request.urlopen = fake_urlopen
+    try:
+        result = OllamaAnalyst(model="m")._chat("plan", {"x": 1})
+    finally:
+        urllib.request.urlopen = original
+    assert result == {"done": True}
+    assert captured["body"]["think"] is False
+
+
+def test_bad_tool_args_do_not_kill_the_run(tmp_path):
+    from visiontriage import tools
+
+    class BadArgsAnalyst(ProfilerAnalyst):
+        name = "bad-args"
+
+        def plan(self, profile, history):
+            if history:
+                return {"done": True}
+            return {"queries": [
+                {"tool": "slice_metrics", "args": {"dimension": "nope", "value": "x"}},
+                {"tool": "cluster_failures", "args": {"bogus": 1}},
+            ]}
+
+    def local_caller(bundle, tool, args):
+        return getattr(tools, tool)(bundle, **args)
+
+    bundle_dir = build_fixture("slice_weakness", tmp_path / "fx")
+    result = analyse(str(bundle_dir), BadArgsAnalyst(), output_root=tmp_path / "out",
+                     db_path=tmp_path / "state.db", thread_id="bad",
+                     tool_caller=local_caller)
+    assert result.get("__interrupt__")
+    trace = json.loads(
+        (tmp_path / "out" / "fixture-slice_weakness" / "tool_trace.json").read_text())
+    assert len(trace) == 2  # both bad calls recorded, run survived
+
+
 def test_profiler_on_leakage_reports_incomplete_honestly(tmp_path):
     """A run with no errors yields no findings, not invented ones."""
     from visiontriage import tools

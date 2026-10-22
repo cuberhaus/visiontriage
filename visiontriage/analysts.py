@@ -104,6 +104,10 @@ class OllamaAnalyst:
             f"{self.base_url}/api/chat",
             data=json.dumps({
                 "model": self.model, "stream": False, "format": "json",
+                # Thinking models otherwise spend minutes reasoning before
+                # the JSON; with think off this Ollama build still returns
+                # the reply in the `thinking` field, so accept either.
+                "think": False,
                 "options": {"temperature": 0},
                 "messages": [message],
             }).encode(),
@@ -111,7 +115,11 @@ class OllamaAnalyst:
         )
         with urllib.request.urlopen(request, timeout=300) as response:
             data = json.loads(response.read())
-        return json.loads(data["message"]["content"])
+        message_out = data.get("message") or {}
+        raw = message_out.get("content") or message_out.get("thinking") or ""
+        if not raw.strip():
+            raise ValueError("empty response from Ollama")
+        return json.loads(raw)
 
     def plan(self, profile: dict, history: list[dict]) -> dict:
         result = self._chat("plan", {"profile": profile, "history": history})

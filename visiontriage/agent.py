@@ -110,22 +110,33 @@ def build_graph(bundle: Bundle, analyst, output_dir: Path,
             if tool == "inspect_examples":
                 if inspect_calls >= MAX_INSPECT_CALLS:
                     continue
-                # Deterministic selection: worst examples of the slice/cluster.
-                selected = tools.list_examples(
-                    bundle, outcome=args.get("outcome", "fn"),
-                    dimension=args.get("dimension"), value=args.get("value"), limit=5)
-                ids = [e["image_id"] for e in selected["examples"]][:5]
-                if not ids:
+                try:
+                    # Deterministic selection: worst examples of the slice/cluster.
+                    selected = tools.list_examples(
+                        bundle, outcome=args.get("outcome", "fn"),
+                        dimension=args.get("dimension"), value=args.get("value"), limit=5)
+                    ids = [e["image_id"] for e in selected["examples"]][:5]
+                    if not ids:
+                        continue
+                    supplied = call("get_images", {"image_ids": ids})
+                    inspection = active_analyst().inspect(
+                        f"I{inspect_calls + 1}", supplied["images"])
+                except Exception as exc:  # a failed inspection must not kill the run
+                    calls.append({"tool": "inspect_examples", "args": args})
+                    results.append({"tool": "inspect_examples", "args": args,
+                                    "result": {"error": f"{type(exc).__name__}: {exc}"}})
+                    inspect_calls += 1
                     continue
-                supplied = call("get_images", {"image_ids": ids})
-                inspection = active_analyst().inspect(f"I{inspect_calls + 1}", supplied["images"])
                 inspections.append(inspection)
                 inspect_calls += 1
                 calls.append({"tool": "inspect_examples", "args": args})
                 results.append({"tool": "inspect_examples", "args": args,
                                 "result": inspection.model_dump()})
                 continue
-            result = call(tool, args)
+            try:
+                result = call(tool, args)
+            except Exception as exc:  # LLM-proposed bad args etc: record, move on
+                result = {"error": f"{type(exc).__name__}: {exc}"}
             calls.append({"tool": tool, "args": args})
             results.append({"tool": tool, "args": args, "result": result})
         return {"tool_calls": calls, "tool_results": results,

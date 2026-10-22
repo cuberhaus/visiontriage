@@ -4,4 +4,6 @@ __pycache__/
 .venv/
 .pytest_cache/
 data/
+analysis/
+.visiontriage/
 *.log

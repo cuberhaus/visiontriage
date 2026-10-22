@@ -81,7 +81,7 @@ def test_prompt_versions_present():
 # Prompt bodies are pinned to their versions: editing a prompt without
 # bumping `version:` (and updating this pin) fails this test.
 _PROMPT_PINS = {
-    "plan": ("1", "741701b7130074835a6a9379d49eafce2dcbc7faca6454c7eebfd249e0d67348"),
+    "plan": ("2", "79faf19cd4829361b8760d67b945f4e175a817d9c21705e20310bc7b4f992d92"),
     "inspect": ("1", "317d9d1adb6fbe7c30d46eaac0486458d411009ecce9ac4d9b6959f441d4fbcf"),
     "synthesize": ("1", "9a3c9a7346a37aacf75fe52fa0f27b7383e280fa2f70446658b97515d7fbc2ff"),
 }

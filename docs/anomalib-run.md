@@ -34,15 +34,15 @@ Save this as `dump_scores.py` **in the Anomalib workspace, not in this repo**:
 
 ```python
 import csv, os
-from anomalib.data import MVTec
+from anomalib.data import MVTecAD  # anomalib 2.x name (was MVTec in 1.x)
 from anomalib.engine import Engine
 from anomalib.models import Patchcore
 
 CATEGORY = os.environ.get("CATEGORY", "bottle")
 ROOT = "data/mvtec"  # adjust to your absolute MVTec path
 
-datamodule = MVTec(root=ROOT, category=CATEGORY,
-                   train_batch_size=32, eval_batch_size=32)
+datamodule = MVTecAD(root=ROOT, category=CATEGORY,
+                     train_batch_size=32, eval_batch_size=32)
 engine = Engine(max_epochs=1)
 engine.fit(model=Patchcore(), datamodule=datamodule)
 batches = engine.predict(model=Patchcore(), datamodule=datamodule)
@@ -58,7 +58,7 @@ rows = []
 for batch in batches or []:
     paths = get(batch, "image_path", "image_paths") or []
     scores = get(batch, "pred_score", "pred_scores", "anomaly_score")
-    labels = get(batch, "label", "true_label", "is_anomaly")
+    labels = get(batch, "gt_label", "label", "true_label", "is_anomaly")
     scores = scores.tolist() if hasattr(scores, "tolist") else list(scores or [])
     labels = labels.tolist() if hasattr(labels, "tolist") else (labels or [])
     for i, path in enumerate(paths):

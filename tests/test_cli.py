@@ -52,7 +52,7 @@ def test_cli_analyse_then_resume(tmp_path):
         assert (analysis_dir / artefact).is_file(), artefact
     doc = json.loads((analysis_dir / "findings.json").read_text())
     assert doc["findings"]
-    assert doc["prompt_versions"] == {"plan": "1", "inspect": "1", "synthesize": "1"}
+    assert doc["prompt_versions"] == {"plan": "2", "inspect": "1", "synthesize": "1"}
     assert "## Findings" in (analysis_dir / "report.md").read_text()
 
     first_action = doc["findings"][0]["actions"][0]["action_id"]

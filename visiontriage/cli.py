@@ -31,7 +31,7 @@ def _make_analyst(args):
         return FakeAnalyst()
     from visiontriage.analysts import OllamaAnalyst
     model = getattr(args, "model", None) or os.environ.get(
-        "VISIONTRIAGE_MODEL", "ollama:qwen3-vl:8b")
+        "VISIONTRIAGE_MODEL", "ollama:qwen3-vl:32b")
     if model.startswith("ollama:"):
         model = model.split(":", 1)[1]
     return OllamaAnalyst(model=model,
